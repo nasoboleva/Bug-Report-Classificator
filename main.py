@@ -5,6 +5,7 @@ from sklearn import linear_model
 from sklearn.preprocessing import LabelEncoder
 from sklearn import metrics, cross_validation
 from sklearn.metrics import roc_curve, auc
+from sklearn.naive_bayes import GaussianNB
 import pylab as pl
 
 
@@ -38,10 +39,7 @@ InputFile['Environment'] = (InputFile.Environment.notnull()).astype(bool)
 InputFile['Description'] = (InputFile.Description.notnull()).astype(bool)
 InputFile['Steps_to_Reproduce'] = (InputFile.Steps_to_Reproduce.notnull()).astype(bool)
 
-
-statistics(InputFile)
 #Reduce str
-
 label = LabelEncoder()
 dicts = {}
 
@@ -54,21 +52,13 @@ InputFile.Priority = label.transform(InputFile.Priority)
 target = InputFile.USEFUL_Description
 train = InputFile.drop(['USEFUL_Description', 'Key'], axis=1)
 
-
-TestModels = pd.DataFrame()
-tmp1 = {}
-tmp2 = {}
 #LEARNING_OPTION_2 --- LogisticRegression && LEARNING_OPTION_3 --- LogisticRegression with gradient desent
 
 model_lr = LogisticRegression()
 cls = linear_model.SGDClassifier(loss='log')
-tmp1['Model'] = 'LogisticRegression1'
-tmp2['Model'] =  'SGDClassifier1'
-tmp1['Accurancy'] = 0
-tmp2['Accurancy'] = 0
 
 #StratifiedShuffleSplit
-for train_index, test_index in cross_validation.StratifiedShuffleSplit(target, n_iter=100, test_size=0.25):
+for train_index, test_index in cross_validation.StratifiedShuffleSplit(target, n_iter=10, test_size=0.25):
     y_train, y_test = target[train_index], target[test_index]
     X_train, X_test = train.iloc[train_index], train.iloc[test_index]
 
@@ -80,66 +70,34 @@ for train_index, test_index in cross_validation.StratifiedShuffleSplit(target, n
     # proving
     predicted_lr = model_lr.predict(X_test)
     predicted_cls = cls.predict(X_test)
-    tmp1['Accurancy'] += metrics.accuracy_score(y_test, predicted_lr)
-    tmp2['Accurancy'] += metrics.accuracy_score(y_test, predicted_cls)
-    print(metrics.accuracy_score(y_test, predicted_lr), metrics.accuracy_score(y_test, predicted_cls))
-
-tmp1['Accurancy'] /= 100
-tmp2['Accurancy'] /= 100
-TestModels = TestModels.append([tmp1])
-TestModels = TestModels.append([tmp2])
+    print(metrics.classification_report(y_test, predicted_lr))
+    print(metrics.confusion_matrix(y_test, predicted_lr))
+    #print(metrics.accuracy_score(y_test, predicted_lr), metrics.accuracy_score(y_test, predicted_cls))
 
 
+#BAYES
+bayes = GaussianNB()
 
-#Same models(LogisticRegression && SGDClassifier) other validation
-tmp3 = {}
-tmp4 = {}
-
-model_lr2 = LogisticRegression()
-cls2 = linear_model.SGDClassifier(loss='log')
-tmp3['Model'] = 'LogisticRegression2'
-tmp4['Model'] =  'SGDClassifier2'
-tmp3['Accurancy'] = 0
-tmp4['Accurancy'] = 0
-iter = 0
 #Kfolds
 for train_index, test_index in cross_validation.KFold(train.shape[0], n_folds=5):
-    iter += 1
     y_train, y_test = target[train_index], target[test_index]
     X_train, X_test = train.iloc[train_index], train.iloc[test_index]
 
     #training
-    model_lr2.fit(X_train, y_train.reshape(len(y_train)))
-    cls2.fit(X_train, y_train.reshape(len(y_train)))
+    bayes.fit(X_train, y_train.reshape(len(y_train)))
     #print(model_lr2.coef_)
 
     # proving
-    predicted_lr2 = model_lr2.predict(X_test)
-    predicted_cls2 = cls2.predict(X_test)
-    tmp3['Accurancy'] += metrics.accuracy_score(y_test, predicted_lr2)
-    tmp4['Accurancy'] += metrics.accuracy_score(y_test, predicted_cls2)
-    print(metrics.accuracy_score(y_test, predicted_lr2), metrics.accuracy_score(y_test, predicted_cls2))
-
-tmp3['Accurancy'] /= iter
-tmp4['Accurancy'] /= iter
-TestModels = TestModels.append([tmp3])
-TestModels = TestModels.append([tmp4])
+    predicted_b = bayes.predict(X_test)
+    #print(metrics.accuracy_score(y_test, predicted_lr2), metrics.accuracy_score(y_test, predicted_cls2))
 
 
 #Same models(LogisticRegression && SGDClassifier) other validation
-tmp5 = {}
-tmp6 = {}
-
 model_lr3 = LogisticRegression()
 cls3 = linear_model.SGDClassifier(loss='log')
-tmp5['Model'] = 'LogisticRegression3'
-tmp6['Model'] =  'SGDClassifier3'
-tmp5['Accurancy'] = 0
-tmp6['Accurancy'] = 0
-iter = 0
+
 #StratifiedKfolds
 for train_index, test_index in cross_validation.StratifiedKFold(target, n_folds=5, shuffle=True, random_state=0):
-    iter += 1
     y_train, y_test = target[train_index], target[test_index]
     X_train, X_test = train.iloc[train_index], train.iloc[test_index]
 
@@ -151,13 +109,41 @@ for train_index, test_index in cross_validation.StratifiedKFold(target, n_folds=
     # proving
     predicted_lr3 = model_lr3.predict(X_test)
     predicted_cls3 = cls3.predict(X_test)
-    tmp5['Accurancy'] += metrics.accuracy_score(y_test, predicted_lr3)
-    tmp6['Accurancy'] += metrics.accuracy_score(y_test, predicted_cls3)
-    print(metrics.accuracy_score(y_test, predicted_lr3), metrics.accuracy_score(y_test, predicted_cls3))
-tmp5['Accurancy'] /= iter
-tmp6['Accurancy'] /= iter
-TestModels = TestModels.append([tmp5])
-TestModels = TestModels.append([tmp6])
+    print(metrics.classification_report(y_test, predicted_lr3))
+    print(metrics.confusion_matrix(y_test, predicted_lr3))
+    #print(metrics.accuracy_score(y_test, predicted_lr3), metrics.accuracy_score(y_test, predicted_cls3))
+
+
+#Accurancy
+AX_train, AX_test, Ay_train, Ay_test = cross_validation.train_test_split(train, target, test_size=0.25)
+
+TestModels = pd.DataFrame()
+tmp = {}
+
+
+#LogisticRegression
+tmp['Model'] = 'LogisticRegression'
+model_lr.fit(AX_train, Ay_train)
+predicted = model_lr.predict(AX_test)
+tmp['Accurancy'] = metrics.accuracy_score(Ay_test, predicted)
+
+TestModels = TestModels.append([tmp])
+
+#SGDClassifier
+tmp['Model'] = 'SGDClassifier'
+cls.fit(AX_train, Ay_train)
+predicted = cls.predict(AX_test)
+tmp['Accurancy'] = metrics.accuracy_score(Ay_test, predicted)
+
+TestModels = TestModels.append([tmp])
+
+#Bayes
+tmp['Model'] = 'Naive Bayes'
+bayes.fit(AX_train, Ay_train)
+predicted = bayes.predict(AX_test)
+tmp['Accurancy'] = metrics.accuracy_score(Ay_test, predicted)
+
+TestModels = TestModels.append([tmp])
 
 TestModels.set_index('Model', inplace=True)
 TestModels.plot(kind='bar', legend= False)
@@ -172,14 +158,12 @@ scores = cross_validation.cross_val_score(model_lr, train, target, cv = kfold)
 itog_val['LogisticRegression1'] = scores.mean()
 scores = cross_validation.cross_val_score(cls, train, target, cv = kfold)
 itog_val['SGDClassifier1'] = scores.mean()
-scores = cross_validation.cross_val_score(model_lr2, train, target, cv = kfold)
-itog_val['LogisticRegression2'] = scores.mean()
-scores = cross_validation.cross_val_score(cls2, train, target, cv = kfold)
-itog_val['SGDClassifier2'] = scores.mean()
 scores = cross_validation.cross_val_score(model_lr3, train, target, cv = kfold)
 itog_val['LogisticRegression3'] = scores.mean()
 scores = cross_validation.cross_val_score(cls3, train, target, cv = kfold)
 itog_val['SGDClassifier3'] = scores.mean()
+scores = cross_validation.cross_val_score(bayes, train, target, cv = kfold)
+itog_val['Naive Bayes'] = scores.mean()
 
 pd.DataFrame.from_dict(data = itog_val, orient='index').plot(kind='bar', legend=False)
 plt.show()
@@ -188,6 +172,22 @@ plt.show()
 ROCtrainTRN, ROCtestTRN, ROCtrainTRG, ROCtestTRG = cross_validation.train_test_split(train, target, test_size=0.25)
 
 plt.figure(figsize=(8,6))
+
+#LogisticRegression1
+
+probas = model_lr.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
+false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
+roc_auc  = auc(false_positive_rate, true_positive_rate)
+pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('LogisticRegression',roc_auc))
+
+#Naive Bayes
+
+probas = bayes.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
+false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
+roc_auc  = auc(false_positive_rate, true_positive_rate)
+pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('Naive Bayes',roc_auc))
+
+
 #SGDClassifier1
 
 probas = cls.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
@@ -196,29 +196,6 @@ roc_auc  = auc(false_positive_rate, true_positive_rate)
 pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('SGDClassifier1', roc_auc))
 
 
-#LogisticRegression1
-
-probas = model_lr.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
-false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
-roc_auc  = auc(false_positive_rate, true_positive_rate)
-pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('LogisticRegression1',roc_auc))
-
-
-#SGDClassifier2
-
-probas = cls2.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
-false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
-roc_auc  = auc(false_positive_rate, true_positive_rate)
-pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('SGDClassifier2', roc_auc))
-
-
-#LogisticRegression2
-
-probas = model_lr2.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
-false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
-roc_auc  = auc(false_positive_rate, true_positive_rate)
-pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('LogisticRegression2',roc_auc))
-
 #SGDClassifier3
 
 probas = cls3.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
@@ -226,13 +203,6 @@ false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
 roc_auc  = auc(false_positive_rate, true_positive_rate)
 pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('SGDClassifier3', roc_auc))
 
-
-#LogisticRegression3
-
-probas = model_lr3.fit(ROCtrainTRN, ROCtrainTRG).predict_proba(ROCtestTRN)
-false_positive_rate, true_positive_rate, _ = roc_curve(ROCtestTRG, probas[:, 1])
-roc_auc  = auc(false_positive_rate, true_positive_rate)
-pl.plot(false_positive_rate, true_positive_rate, label='%s ROC (area = %0.2f)' % ('LogisticRegression3',roc_auc))
 
 
 pl.plot([0, 1], [0, 1], 'k--')
